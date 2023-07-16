@@ -13,18 +13,18 @@ import (
 
 //map for converting mysql type to golang types
 var typeForMysqlToGo = map[string]string{
-	"int":                "int64",
-	"integer":            "int64",
-	"tinyint":            "int64",
-	"smallint":           "int64",
-	"mediumint":          "int64",
+	"int":                "int32",
+	"int unsigned":       "uint32",
+	"integer":            "int32",
+	"tinyint":            "int8",
+	"smallint":           "int8",
+	"mediumint":          "int32",
 	"bigint":             "int64",
-	"int unsigned":       "int64",
-	"integer unsigned":   "int64",
-	"tinyint unsigned":   "int64",
-	"smallint unsigned":  "int64",
-	"mediumint unsigned": "int64",
-	"bigint unsigned":    "int64",
+	"integer unsigned":   "uint32",
+	"tinyint unsigned":   "uint8",
+	"smallint unsigned":  "uint8",
+	"mediumint unsigned": "uint32",
+	"bigint unsigned":    "uint64",
 	"bit":                "int64",
 	"bool":               "bool",
 	"enum":               "string",
@@ -181,14 +181,14 @@ func (t *Table2Struct) Run() error {
 		depth := 1
 		structContent += "type " + structName + " struct {\n"
 		for _, v := range item {
-			//structContent += tab(depth) + v.ColumnName + " " + v.Type + " " + v.Json + "\n"
+			//structContent += tab(depth) + v.ColumnName + " " + v.DataType + " " + v.Json + "\n"
 			// 字段注释
 			var clumnComment string
 			if v.ColumnComment != "" {
 				clumnComment = fmt.Sprintf(" // %s", v.ColumnComment)
 			}
 			structContent += fmt.Sprintf("%s%s %s %s%s\n",
-				tab(depth), v.ColumnName, v.Type, v.Tag, clumnComment)
+				tab(depth), v.ColumnName, v.DataType, v.Tag, clumnComment)
 		}
 		structContent += tab(depth-1) + "}\n\n"
 
@@ -245,7 +245,8 @@ func (t *Table2Struct) dialMysql() {
 
 type column struct {
 	ColumnName    string
-	Type          string
+	ColType       string
+	DataType      string
 	Nullable      string
 	TableName     string
 	ColumnComment string
@@ -263,7 +264,7 @@ func (t *Table2Struct) getColumns(table ...string) (tableColumns map[string][]co
 	}
 	tableColumns = make(map[string][]column)
 	// sql
-	var sqlStr = `SELECT COLUMN_NAME,DATA_TYPE,IS_NULLABLE,TABLE_NAME,COLUMN_COMMENT
+	var sqlStr = `SELECT COLUMN_NAME,COLUMN_TYPE,DATA_TYPE, IS_NULLABLE,TABLE_NAME,COLUMN_COMMENT
 		FROM information_schema.COLUMNS 
 		WHERE table_schema = DATABASE()`
 	// 是否指定了具体的table
@@ -283,18 +284,24 @@ func (t *Table2Struct) getColumns(table ...string) (tableColumns map[string][]co
 
 	for rows.Next() {
 		col := column{}
-		err = rows.Scan(&col.ColumnName, &col.Type, &col.Nullable, &col.TableName, &col.ColumnComment)
+		err = rows.Scan(&col.ColumnName,&col.ColType, &col.DataType, &col.Nullable, &col.TableName, &col.ColumnComment)
 
 		if err != nil {
 			log.Println(err.Error())
 			return
 		}
 
+		// 判断列类型是否为无符号整数
+		if strings.Contains(col.ColType, "unsigned") {
+			// 无符号整数处理
+			col.DataType += " unsigned"
+		}
+
 		//col.Json = strings.ToLower(col.ColumnName)
 		col.Tag = col.ColumnName
 		col.ColumnComment = col.ColumnComment
 		col.ColumnName = t.camelCase(col.ColumnName)
-		col.Type = typeForMysqlToGo[col.Type]
+		col.DataType = typeForMysqlToGo[col.DataType]
 		jsonTag := col.Tag
 		// 字段首字母本身大写, 是否需要删除tag
 		if t.config.RmTagIfUcFirsted &&

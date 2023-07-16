@@ -3,14 +3,31 @@ package main
 import (
 	"fmt"
 	"github.com/gohouse/converter"
+	"os"
 )
 
 func main() {
-	t2t := converter.NewTable2Struct()
+	if len(os.Args) != 3{
+		fmt.Println("Usage: convert dbName tableName")
+		return
+	}
 
-	err := t2t.
-		SavePath("/home/go/project/model/model.go").
-		Dsn("root:root@tcp(localhost:3306)/test?charset=utf8").
+	var b byte = 1
+	var bb uint8 = 2
+
+	b = bb
+	fmt.Println(b)
+
+	dbName := os.Args[1]
+	tableName := os.Args[2]
+
+	err := converter.NewTable2Struct().
+		SavePath("./model.go").
+		Dsn("root:unixc@tcp(192.168.100.13:3306)/"+dbName+"?charset=utf8").
+		TagKey("xorm").
+		EnableJsonTag(false).
+		Table(tableName).
 		Run()
+
 	fmt.Println(err)
 }
